@@ -1,106 +1,132 @@
-import 'dart:io';
+import 'dart:html';
 
 import 'package:flutter/material.dart';
-import 'package:sqflite_10/database/db_functions.dart';
-import 'package:sqflite_10/database/db_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sqflite_10/screen/editstudent.dart';
 import 'package:sqflite_10/screen/studentdetails.dart';
 
-class StudentList extends StatelessWidget {
+class StudentList extends StatefulWidget {
   const StudentList({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: studentList,
-      builder: (context, value, child) {
-        return ListView.builder(
-          itemCount: value.length,
-          itemBuilder: (context, index) {
-            final student = value[index];
+  State<StudentList> createState() => _StudentListState();
+}
 
-            return Card(
-              color: Colors.lightBlue[50],
-              margin: const EdgeInsets.all(10),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: FileImage(
-                    File(student.imagex),
-                  ),
-                ),
-                title: Text(student.name),
-                subtitle: Text(
-                  "Class: ${student.classname}",
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit,color: Colors.green,),
-                      onPressed: () {
-                        Navigator.of(context).push(MaterialPageRoute(
-                          builder: (context) => EditStudent(student: student),
-                        ));
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete,color: Colors.red,),
-                      onPressed: () {
-                        deletestudent(context, student);
-                      },
-                    ),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (ctr) => StudentDetails(stdetails: student),
-                  ));
-                },
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+class _StudentListState extends State<StudentList> {
+  final CollectionReference student =
+      FirebaseFirestore.instance.collection('Student Record');
 
-  void deletestudent(ctx, StudentModel student) {
+  void deletedata(id) {
     showDialog(
-      context: ctx,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete'),
-          content: const Text('Do You Want delete the list ?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                detectedYes(context, student);
-              },
-              child: const Text('Yes'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-              },
-              child: const Text('No'),
-            ),
-          ],
-        );
-      },
-    );
+        context: context,
+        builder: (i) {
+          return AlertDialog(
+              title: const Text('Delete Data'),
+              content: const Text('Are you sure to delete this student data'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                    onPressed: () {
+                      student.doc(id).delete();
+                      setState(() {});
+                      Navigator.pop(context);
+                    },
+                    child: const Text('delete'))
+              ]);
+        });
   }
 
-  void detectedYes(ctx, StudentModel student) {
-    deleteStudent(student.id!);
-    ScaffoldMessenger.of(ctx).showSnackBar(
-      const SnackBar(
-        content: Text("Successfully Deleted"),
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.all(10),
-        backgroundColor: Colors.redAccent,
-        duration: Duration(seconds: 2),
-      ),
-    );
-    Navigator.of(ctx).pop();
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+        stream: student.orderBy('Name').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
+            if (snapshot.data!.docs.isEmpty) {
+              return const Center(
+                child: Text(
+                  'No students available',
+                  style: TextStyle(fontSize: 18),
+                ),
+              );
+            }
+            return ListView.builder(
+              itemCount: snapshot.data!.docs.length,
+              itemBuilder: (context, index) {
+                final DocumentSnapshot studentdetails =
+                    snapshot.data!.docs[index];
+                return Card(
+                  color: Colors.lightBlue[50],
+                  margin: const EdgeInsets.all(10),
+                  child: ListTile(
+                    leading: Container(
+                        width: 50,
+                        height: 50,
+                        child: Image.network(studentdetails['image url'],
+                            fit: BoxFit.cover)),
+                    title: Text(studentdetails['Name']),
+                    subtitle: Text(
+                      studentdetails['Age'],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.edit,
+                            color: Colors.green,
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => EditStudent(
+                                          name: studentdetails['Name'],
+                                          age: studentdetails['Age'],
+                                          fatherName:
+                                              studentdetails['Father Name'],
+                                          number: studentdetails['Phone No']
+                                              .toString(),
+                                          id: studentdetails.id.toString(),
+                                          url: studentdetails['image url'],
+                                        )));
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete,
+                            color: Colors.red,
+                          ),
+                          onPressed: () {
+                            deletedata(studentdetails.id);
+                            
+                          },
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (ctr) => StudentDetails(
+                          name: studentdetails['Name'],
+                          age: studentdetails['Age'],
+                          fatherName: studentdetails['Father Name'],
+                          number: studentdetails['Phone No'].toString(),
+                          url: studentdetails['image url'],
+                        ),
+                      ));
+                    },
+                  ),
+                );
+              },
+            );
+          }
+          return Container();
+        });
   }
 }
+

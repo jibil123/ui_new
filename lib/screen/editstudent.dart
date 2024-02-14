@@ -1,41 +1,90 @@
-import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:sqflite_10/database/db_functions.dart';
-import 'package:sqflite_10/database/db_model.dart';
 
 class EditStudent extends StatefulWidget {
-  final student;
+  final String name;
+  final String age;
+  final String fatherName;
+  final String number;
+  final String id;
+  final String url;
 
-  const EditStudent({super.key, required this.student});
+  const EditStudent(
+      {Key? key,
+      required this.name,
+      required this.age,
+      required this.fatherName,
+      required this.number,
+      required this.id,
+      required this.url})
+      : super(key: key);
 
   @override
   State<EditStudent> createState() => _EditStudentState();
 }
 
 class _EditStudentState extends State<EditStudent> {
-  String? updatedImagepath;
-
   final _formKey = GlobalKey<FormState>(); //  form key for the validation
-
+  final CollectionReference student =
+      FirebaseFirestore.instance.collection('Student Record');
   final _nameController = TextEditingController();
-  final _classController = TextEditingController();
+  final _ageController = TextEditingController();
   final _guardianController = TextEditingController();
   final _mobileController = TextEditingController();
+  String? imagepath;
+  Uint8List? selectedImageByInBytes;
+  void updatedata(id, String? url) {
+    final data = {
+      'Name': _nameController.text,
+      'Age': _ageController.text,
+      'Father Name': _guardianController.text,
+      'Phone No': _mobileController.text,
+      'image url': url
+    };
+    student.doc(id).update(data).then((value) => Navigator.pop(context));
+  }
 
   @override
   Widget build(BuildContext context) {
+    _nameController.text = widget.name;
+    _ageController.text = widget.age;
+    _guardianController.text = widget.fatherName;
+    _mobileController.text = widget.number;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edit Student'),
         actions: [
           IconButton(
             onPressed: () {
-              editstudentclicked(
-                context,
-                widget.student,
-              );
+              if (_formKey.currentState!.validate()) {
+                if (selectedImageByInBytes != null && imagepath != null) {
+                  uploadImage(selectedImageByInBytes!, imagepath!)
+                      .then((imageUrl) {
+                    updatedata(widget.id, imageUrl);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        backgroundColor: Colors.green,
+                        content: Text("Successfully Added"),
+                      ),
+                    );
+                  });
+                } else {
+                  updatedata(widget.id, widget.url);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: Colors.green,
+                      content: Text("Successfully Added"),
+                    ),
+                  );
+                }
+              } else {
+                return;
+              }
             },
             icon: const Icon(Icons.cloud_upload),
           )
@@ -46,7 +95,7 @@ class _EditStudentState extends State<EditStudent> {
         child: Padding(
             padding: const EdgeInsets.all(20),
             child: Form(
-              key: _formKey, // Assign the form key
+              key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -54,23 +103,28 @@ class _EditStudentState extends State<EditStudent> {
                   Stack(
                     children: [
                       InkWell(
-                        onTap: () => editphoto(context),
+                        onTap: () => selectImage(),
                         child: CircleAvatar(
-                          backgroundImage: updatedImagepath != null
-                              ? FileImage(File(updatedImagepath!))
-                              : FileImage(File(widget.student.imagex)),
-                          radius: 80,
+                          radius: 100,
+                          child: selectedImageByInBytes == null
+                              ? ClipOval(
+                                  child: Image.network(
+                                  widget.url,
+                                  fit: BoxFit.cover,
+                                ))
+                              : ClipOval(
+                                  child: Image.memory(
+                                  selectedImageByInBytes!,
+                                  fit: BoxFit.fill,
+                                )),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 50),
-
-                  // Name input field with validation
                   Row(
                     children: [
-                      
-                     const SizedBox( width: 10), // Add spacing between icon and text field
+                      const SizedBox(width: 10),
                       Expanded(
                         child: TextFormField(
                           keyboardType: TextInputType.name,
@@ -81,6 +135,7 @@ class _EditStudentState extends State<EditStudent> {
                               borderRadius: BorderRadius.circular(15),
                             ),
                           ),
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: (value) {
                             if (value!.isEmpty) {
                               return 'Please enter a Name';
@@ -92,25 +147,24 @@ class _EditStudentState extends State<EditStudent> {
                     ],
                   ),
                   const SizedBox(height: 20),
-
-                  // Class input field with validation
                   Row(
                     children: [
-                      
-                     const SizedBox( width: 10), // Add spacing between icon and text field
+                      const SizedBox(width: 10),
                       Expanded(
                         child: TextFormField(
+                          maxLength: 2,
                           keyboardType: TextInputType.text,
-                          controller: _classController,
+                          controller: _ageController,
                           decoration: InputDecoration(
                             labelText: "Class",
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(15),
                             ),
                           ),
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: (value) {
                             if (value!.isEmpty) {
-                              return 'Please enter a Class';
+                              return 'Please enter Age';
                             }
                             return null;
                           },
@@ -119,12 +173,9 @@ class _EditStudentState extends State<EditStudent> {
                     ],
                   ),
                   const SizedBox(height: 20),
-
-                  // Guardian input field with validation
                   Row(
                     children: [
-                      
-                    const  SizedBox( width: 10), // Add spacing between icon and text field
+                      const SizedBox(width: 10),
                       Expanded(
                         child: TextFormField(
                           keyboardType: TextInputType.name,
@@ -135,6 +186,7 @@ class _EditStudentState extends State<EditStudent> {
                               borderRadius: BorderRadius.circular(15),
                             ),
                           ),
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: (value) {
                             if (value!.isEmpty) {
                               return 'Enter Parent Name';
@@ -146,15 +198,13 @@ class _EditStudentState extends State<EditStudent> {
                     ],
                   ),
                   const SizedBox(height: 20),
-
-                  // Mobile input field with validation
                   Row(
                     children: [
-                    
-                     const SizedBox( width: 10), // Add spacing between icon and text field
+                      const SizedBox(width: 10),
                       Expanded(
                         child: TextFormField(
                           keyboardType: TextInputType.number,
+                          maxLength: 10,
                           controller: _mobileController,
                           decoration: InputDecoration(
                             labelText: "Mobile",
@@ -162,6 +212,7 @@ class _EditStudentState extends State<EditStudent> {
                               borderRadius: BorderRadius.circular(15),
                             ),
                           ),
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: (value) {
                             if (value!.isEmpty) {
                               return 'Please enter a Mobile';
@@ -181,106 +232,29 @@ class _EditStudentState extends State<EditStudent> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _nameController.text = widget.student.name;
-    _classController.text = widget.student.classname;
-    _guardianController.text = widget.student.father;
-    _mobileController.text = widget.student.pnumber;
-    updatedImagepath = widget.student.imagex;
-  }
+  Future<void> selectImage() async {
+    var picked = await FilePicker.platform.pickFiles();
 
-  @override
-  void didUpdateWidget(covariant oldWidget) {
-    super.didUpdateWidget(oldWidget);
-  }
-
-  Future<void> geterimage(ImageSource source) async {
-    final image = await ImagePicker().pickImage(source: source);
-    if (image == null ){
-      return;
-    }
-    setState(() {
-      updatedImagepath = image.path.toString();
-    });
-  }
-
-  Future<void> editstudentclicked(
-      BuildContext context, StudentModel student) async {
-    if (_formKey.currentState!.validate()) {
-      final name = _nameController.text.toUpperCase();
-      final classA = _classController.text.toString().trim();
-      final father = _guardianController.text;
-      final phonenumber = _mobileController.text.trim();
-
-      final updatedStudent = StudentModel(
-        id: student.id,
-        name: name,
-        classname: classA,
-        father: father,
-        pnumber: phonenumber,
-        imagex: updatedImagepath ?? student.imagex,
-      );
-
-      await editStudent(
-        student.id!,
-        updatedStudent.name,
-        updatedStudent.classname,
-        updatedStudent.father,
-        updatedStudent.pnumber,
-        updatedStudent.imagex,
-      );
-
-      // Refresh the data in the StudentList widget.
-      getstudentdata();
-
-      Navigator.of(context).pop();
+    if (picked != null) {
+      setState(() {
+        imagepath = picked.files.first.name;
+        selectedImageByInBytes = picked.files.first.bytes;
+      });
     }
   }
 
-  void editphoto(ctxr) {
-    showDialog(
-      context: ctxr,
-      builder: (ctxr) {
-        return AlertDialog(
-          title: const Text('Update Photo '),
-          actions: [
-            Column(
-              children: [
-                Row(
-                  children: [
-                   const Text('Choose from camera'),
-                    IconButton(
-                      onPressed: () {
-                        geterimage(ImageSource.camera);
-                        Navigator.of(context).pop();
-                      },
-                      icon: const Icon(
-                        Icons.camera_alt_rounded,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                   const Text('Choose from gallery '),
-                    IconButton(
-                      onPressed: () {
-                        geterimage(ImageSource.gallery);
-                        Navigator.of(context).pop();
-                      },
-                      icon: const Icon(
-                        Icons.image,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
+  Future<String?> uploadImage(Uint8List imageData, String fileName) async {
+    try {
+      firebase_storage.Reference ref = firebase_storage.FirebaseStorage.instance
+          .ref('student image')
+          .child(fileName);
+      final metadata =
+          firebase_storage.SettableMetadata(contentType: 'image/jpeg');
+      await ref.putData(imageData, metadata);
+      String downloadURL = await ref.getDownloadURL();
+      return downloadURL;
+    } catch (e) {
+      return null;
+    }
   }
 }

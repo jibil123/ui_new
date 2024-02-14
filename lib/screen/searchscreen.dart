@@ -1,162 +1,144 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:sqflite_10/database/db_functions.dart';
-import 'package:sqflite_10/database/db_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sqflite_10/screen/editstudent.dart';
 import 'package:sqflite_10/screen/studentdetails.dart';
 
-class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+class Searchscreen extends StatefulWidget {
+  const Searchscreen({Key? key}) : super(key: key);
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  State<Searchscreen> createState() => _StudentListState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
-  List<StudentModel> finduser = [];
+class _StudentListState extends State<Searchscreen> {
+  final CollectionReference student =
+      FirebaseFirestore.instance.collection('Student Record');
+  late TextEditingController searchController;
 
   @override
   void initState() {
     super.initState();
-    finduser = studentList.value;
-    // Initialize with the current student list
+    searchController = TextEditingController();
   }
 
-  void _runFilter(String enteredKeyword) {
-    List<StudentModel> result = [];
-    if (enteredKeyword.isEmpty) {
-      result = studentList.value;
-      // Reset to the original list if the search is empty
-    } else {
-      // Filter based on student properties
-      result = studentList.value
-          .where((student) =>
-              student.name
-                  .toLowerCase()
-                  .contains(enteredKeyword.toLowerCase()) ||
-              student.classname
-                  .toLowerCase()
-                  .contains(enteredKeyword.toLowerCase()))
-          .toList();
-    }
-    setState(() {
-      finduser = result;
-    });
+  void deleteData(String id) {
+    student.doc(id).delete();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: ValueListenableBuilder<List<StudentModel>>(
-          valueListenable: studentList,
-          builder: (context, studentListValue, child) {
-            return Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: TextField( 
-                      onChanged: (value) => _runFilter(value),
-                      decoration: const InputDecoration(
-                        labelText: 'Search',
-                        suffixIcon: Icon(Icons.search,color: Colors.blue,),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: finduser.length,
-                      itemBuilder: (context, index) {
-                        final finduserItem = finduser[index];
-                        return Card(
-                          color:const Color.fromARGB(255, 160, 207, 246),
-                          margin: const EdgeInsets.symmetric(vertical: 10),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundImage:
-                                  FileImage(File(finduserItem.imagex)),
-                            ),
-                            title: Text(finduserItem.name),
-                            subtitle: Text('CLASS : ${finduserItem.classname}'),
-                            trailing:  Row(
-                         mainAxisSize: MainAxisSize.min,
-                          children: [
-                           IconButton(
-                            icon: const Icon(Icons.edit,color: Colors.green,),
-                            onPressed: () {
-                             Navigator.of(context).push(MaterialPageRoute(
-                          builder: (context) => EditStudent(student: finduserItem),
-                        ));
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete,color: Colors.red,),
-                      onPressed: () {
-                        deletestudent(context, finduserItem);
-                      },
-                    ),
-                  ],
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: searchController,
+              onChanged: (value) {
+                setState(() {});
+              },
+              decoration: const InputDecoration(
+                labelText: 'Search',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(10.0)),
                 ),
-                            onTap: () {
-                              Navigator.of(context)
-                                  .pushReplacement(MaterialPageRoute(
-                                builder: (ctr) =>
-                                    StudentDetails(stdetails: finduserItem),
-                              ));
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
               ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-  void deletestudent(ctx, StudentModel student) {
-    showDialog(
-      context: ctx,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete'),
-          content: const Text('Do You Want delete the list ?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                detectedYes(context, student);
-              },
-              child: const Text('Yes'),
             ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-              },
-              child: const Text('No'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+          ),
+          StreamBuilder(
+            stream: student.orderBy('Name').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                List<DocumentSnapshot> students = snapshot.data!.docs;
+                List<DocumentSnapshot> filteredStudents =
+                    students.where((student) {
+                  String name = student['Name'].toString().toLowerCase();
+                  return name.contains(searchController.text.toLowerCase());
+                }).toList();
+                if (filteredStudents.isEmpty) {
+                  return const Center(
+                      child: Text(
+                    'No students available',
+                    style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
+                  ));
+                }
 
-  void detectedYes(ctx, StudentModel student) {
-    deleteStudent(student.id!);
-    ScaffoldMessenger.of(ctx).showSnackBar(
-      const SnackBar(
-        content: Text("Successfully Deleted"),
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.all(10),
-        backgroundColor: Colors.redAccent,
-        duration: Duration(seconds: 2),
+                return ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: filteredStudents.length,
+                  itemBuilder: (context, index) {
+                    final DocumentSnapshot studentDetails =
+                        filteredStudents[index];
+
+                    return Card(
+                      color: Colors.lightBlue[50],
+                      margin: const EdgeInsets.all(10),
+                      child: ListTile(
+                        leading: Container(
+                            width: 50,
+                            height: 50,
+                            child: Image.network(studentDetails['image url'],
+                                fit: BoxFit.cover)),
+                        title: Text(studentDetails['Name']),
+                        subtitle: Text(studentDetails['Age']),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.green),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => EditStudent(
+                                      name: studentDetails['Name'],
+                                      age: studentDetails['Age'],
+                                      fatherName: studentDetails['Father Name'],
+                                      number:
+                                          studentDetails['Phone No'].toString(),
+                                      id: studentDetails.id.toString(),
+                                      url: studentDetails['image url'],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                deleteData(studentDetails.id);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    backgroundColor: Colors.red,
+                                    content: Text("Deleted Successfully"),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (ctr) => StudentDetails(
+                              name: studentDetails['Name'],
+                              age: studentDetails['Age'],
+                              fatherName: studentDetails['Father Name'],
+                              number: studentDetails['Phone No'].toString(),
+                              url: studentDetails['image url'],
+                            ),
+                          ));
+                        },
+                      ),
+                    );
+                  },
+                );
+              }
+              return Container();
+            },
+          ),
+        ],
       ),
     );
-    Navigator.of(ctx).pop();
   }
 }

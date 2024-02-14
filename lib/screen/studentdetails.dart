@@ -1,11 +1,19 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class StudentDetails extends StatelessWidget {
-  final stdetails;
-  const StudentDetails({super.key, required this.stdetails});
+   final String  name;
+  final String age;
+  final String fatherName;
+  final String number;
+  final String url;
+const StudentDetails({super.key,  
+    required this.name,
+  required this.age,
+  required this.fatherName,
+  required this.number,
+  required this.url});
 
   @override
   Widget build(BuildContext context) {
@@ -26,8 +34,8 @@ class StudentDetails extends StatelessWidget {
                 ClipRRect(
                   borderRadius:
                       BorderRadius.circular(8), // Adjust the radius as needed
-                  child: Image.file(
-                    File(stdetails.imagex),
+                  child: Image.network(
+                    url,
                     width: 160,
                     height: 160,
                     fit: BoxFit.cover,
@@ -40,19 +48,19 @@ class StudentDetails extends StatelessWidget {
                   
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Name :  ${stdetails.name}',
+                  Text('Name : $name ',
                         style: GoogleFonts.alice(fontSize: 23,color:const  Color.fromARGB(255, 3, 61, 4))),
                     const SizedBox( height: 10,
                     ),
-                    Text('Class :  ${stdetails.classname}',
+                    Text('Age : $age',
                         style:GoogleFonts.alice(fontSize: 23,color:const Color.fromARGB(255, 95, 4, 111))),
                     const SizedBox( height: 10,
                     ),
-                    Text('Parent :  ${stdetails.father}',
+                    Text('Parent :  $fatherName',
                         style:  GoogleFonts.alice(fontSize: 23,color:const  Color.fromARGB(255, 4, 9, 111))),
                     const SizedBox(height: 10,
                     ),
-                    Text ('Mobile :  ${stdetails.pnumber}',
+                    Text ('Mobile : $number',
                         style: GoogleFonts.alice (fontSize: 23,color:const Color.fromARGB(255, 111, 4, 68))),
                   ],
                 )
